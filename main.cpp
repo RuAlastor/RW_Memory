@@ -3,10 +3,14 @@
 #include <string>
 #include <sstream>
 
+enum Actions { do_exit, do_RInt, do_RCh, do_RStr, do_WInt, do_WCh, do_WStr };
+
 UINT readInteger(HANDLE);
 UINT readChar(HANDLE);
 UINT readString(HANDLE);
 UINT writeInteger(HANDLE);
+UINT writeChar(HANDLE);
+UINT writeString(HANDLE);
 
 int main(int argc, char* argv[]) {
 	DWORD PID = 0;
@@ -24,7 +28,7 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}	
 
-	int state = 0;
+	int action = 0;
 	while (true) {
 		std::cout << "\nWhat do you want to do?\n"
 			<< "0 - exit\n"
@@ -32,14 +36,16 @@ int main(int argc, char* argv[]) {
 			<< "2 - read char\n"
 			<< "3 - read string\n"
 			<< "4 - write to an integer\n"
+			<< "5 - write to a char array\n"
+			<< "6 - write to a string\n"
 			<< "...\n";
-		std::cin >> state;
-		switch (state) {
-		case 0:
+		std::cin >> action;
+		switch (action) {
+		case do_exit:
 			return 0;
 			break;
 
-		case  1:
+		case  do_RInt:
 			if (readInteger(pHandle)) {
 				std::cout << "Reading integer failed!\n";
 				system("puase");
@@ -47,7 +53,7 @@ int main(int argc, char* argv[]) {
 			}
 			break;
 
-		case 2:
+		case do_RCh:
 			if (readChar(pHandle)) {
 				std::cout << "Reading char failed!\n";
 				system("puase");
@@ -55,7 +61,7 @@ int main(int argc, char* argv[]) {
 			}
 			break;
 
-		case 3:
+		case do_RStr:
 			if (readString(pHandle)) {
 				std::cout << "Reading string failed!\n";
 				system("puase");
@@ -63,11 +69,28 @@ int main(int argc, char* argv[]) {
 			}
 			break;
 
-		case 4:
+		case do_WInt:
 			if (writeInteger(pHandle)) {
 				std::cout << "Writing integer failed!\n";
 				system("pause");
 				return EXIT_FAILURE;
+			}
+			break;
+
+		case do_WCh:
+			if (writeChar(pHandle)) {
+				std::cout << "Failed to write to char array!\n";
+				system("pause");
+				return EXIT_FAILURE;
+			}
+			break;
+
+		case do_WStr:
+			if (writeString(pHandle)) {
+				std::cout << "Failed to write to string!\n";
+				system("pause");
+				return EXIT_FAILURE;
+
 			}
 			break;
 
@@ -123,7 +146,7 @@ UINT readInteger(HANDLE pHandle) {
 UINT readChar(HANDLE pHandle) {
 
 	uintptr_t memAddr2Read = 0x0;
-	std::cout << "\nPlease, enter string address to read: ";
+	std::cout << "\nPlease, enter array address to read: ";
 	std::cin >> std::hex >> memAddr2Read;
 	std::cout << "Please, enter how many symbols to read: ";
 	unsigned int symbols_to_read = 0;
@@ -216,6 +239,95 @@ UINT writeInteger(HANDLE pHandle) {
 	}
 	std::cout << "Overwritten successfully!\n";
 
+	return 0;
+
+}
+
+UINT writeChar(HANDLE pHandle) {
+
+	uintptr_t memAddr2Write = 0x0;
+	std::cout << "\nPlease, enter array address to write: ";
+	std::cin >> std::hex >> memAddr2Write;
+	getchar();
+	
+	std::string str2Write("");
+	std::cout << "Enter your string: ";
+	getline(std::cin, str2Write);
+
+	SIZE_T writtenFromBuffer = 0;
+	SIZE_T totalWrittenFromBuffer = 0;
+
+	std::stringstream deriv(str2Write);
+	str2Write.clear();
+	while (deriv >> str2Write) {
+		if (!WriteProcessMemory(pHandle,
+								reinterpret_cast<LPVOID>(memAddr2Write + totalWrittenFromBuffer),
+								reinterpret_cast<LPCVOID>(str2Write.c_str()),
+								str2Write.size(),
+								&writtenFromBuffer)) {
+			std::cout << "Error: " << GetLastError() << '\n';
+			return EXIT_FAILURE;
+		}
+		totalWrittenFromBuffer += writtenFromBuffer;
+		str2Write = ' ';
+		if (!WriteProcessMemory(pHandle,
+			reinterpret_cast<LPVOID>(memAddr2Write + totalWrittenFromBuffer),
+			reinterpret_cast<LPCVOID>(str2Write.c_str()),
+			str2Write.size(),
+			&writtenFromBuffer)) {
+			std::cout << "Error: " << GetLastError() << '\n';
+			return EXIT_FAILURE;
+		}
+		totalWrittenFromBuffer += writtenFromBuffer;
+	}
+
+	std::cout << "Char array was overwritten successfully!" << '\n'
+		<< "Read bytes: " << totalWrittenFromBuffer << '\n';
+
+	return 0;
+
+}
+
+UINT writeString(HANDLE pHandle) {
+
+	uintptr_t memAddr2Write = 0x0;
+	std::cout << "\nPlease, enter string address to write: ";
+	std::cin >> std::hex >> memAddr2Write;
+	getchar();
+
+	std::string str2Write("");
+	std::cout << "Enter your string: ";
+	getline(std::cin, str2Write);
+
+	SIZE_T writtenFromBuffer = 0;
+	SIZE_T totalWrittenFromBuffer = 0;
+
+	std::stringstream deriv(str2Write);
+	str2Write.clear();
+	while (deriv >> str2Write) {
+		if (!WriteProcessMemory(pHandle,
+			reinterpret_cast<LPVOID>(memAddr2Write + 4 + totalWrittenFromBuffer),
+			reinterpret_cast<LPCVOID>(str2Write.c_str()),
+			str2Write.size(),
+			&writtenFromBuffer)) {
+			std::cout << "Error: " << GetLastError() << '\n';
+			return EXIT_FAILURE;
+		}
+		totalWrittenFromBuffer += writtenFromBuffer;
+		str2Write = ' ';
+		if (!WriteProcessMemory(pHandle,
+			reinterpret_cast<LPVOID>(memAddr2Write + 4 + totalWrittenFromBuffer),
+			reinterpret_cast<LPCVOID>(str2Write.c_str()),
+			str2Write.size(),
+			&writtenFromBuffer)) {
+			std::cout << "Error: " << GetLastError() << '\n';
+			return EXIT_FAILURE;
+		}
+		totalWrittenFromBuffer += writtenFromBuffer;
+	}
+
+	std::cout << "String was overwritten successfully!" << '\n'
+		<< "Read bytes: " << totalWrittenFromBuffer << '\n';
 	return 0;
 
 }
